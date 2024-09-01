@@ -37,7 +37,7 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
-let player, cursors, blocks, weapon, placing = true, enemies, inventory = {};
+let player, cursors, blocks, weapon, placing = true, enemies, inventory = {}, currentWeapon = null;
 const materials = {
     'dirt': { image: 'dirt', strength: 1 },
     'grass': { image: 'grass', strength: 1 },
@@ -56,25 +56,24 @@ const recipes = {
     'stone_sword': { 'stone': 2 },
     'iron_sword': { 'iron': 2 },
     'gold_sword': { 'gold': 2 },
-    'Wiper': { 'iron': 3 },
-    'fluorite_sword': { 'fluorite': 2 }
+    'Wiper': { 'iron': 3, 'gold': 1 },
+    'cardboard': { 'wood': 8 }
 };
 
 function preload() {
-    // 画像の読み込み
     this.load.image('player', 'https://examples.phaser.io/assets/sprites/phaser-dude.png');
-    this.load.image('dirt', 'image/dirt.png');  // 16x16画像を32x32に拡大
-    this.load.image('grass', 'image/grass.png');  // 16x16画像を32x32に拡大
-    this.load.image('wood', 'image/wood.png');  // 16x16画像を32x32に拡大
-    this.load.image('stone', 'image/stone.png');  // 16x16画像を32x32に拡大
-    this.load.image('iron', 'image/gold.png');  // 16x16画像を32x32に拡大
-    this.load.image('fluorite', 'image/fluorite.png');  // 16x16画像を32x32に拡大
-    this.load.image('water', 'image/water.png');  // 16x16画像を32x32に拡大
-    this.load.image('lava', 'image/lava.png');  // 16x16画像を32x32に拡大
-    this.load.image('cardboard', 'image/cardboard.png');  // 16x16画像を32x32に拡大
-    this.load.image('momonga', 'image/momonga.png');  // ちいかわのモモンガの画像
-    this.load.image('sword', 'image/sword.png');  // 仮の画像
-    this.load.image('Wiper', 'image/Wiper.png');  // 仮の画像
+    this.load.image('dirt', 'image/dirt.png');
+    this.load.image('grass', 'image/grass.png');
+    this.load.image('wood', 'image/wood.png');
+    this.load.image('stone', 'image/stone.png');
+    this.load.image('iron', 'image/iron.png');
+    this.load.image('fluorite', 'image/fluorite.png');
+    this.load.image('water', 'image/water.png');
+    this.load.image('lava', 'image/lava.png');
+    this.load.image('cardboard', 'image/cardboard.png');
+    this.load.image('momonga', 'image/momonga.png');
+    this.load.image('sword', 'image/sword.png');
+    this.load.image('Wiper', 'image/Wiper.png');
 }
 
 function create() {
@@ -84,7 +83,6 @@ function create() {
     weapon = this.add.image(0, 0, 'sword').setScale(0.5).setVisible(false);
     cursors = this.input.keyboard.createCursorKeys();
 
-    // 土と石の生成
     for (let y = 0; y < window.innerHeight; y += 32) {
         for (let x = 0; x < window.innerWidth; x += 32) {
             let material = 'dirt';
@@ -92,42 +90,40 @@ function create() {
             else if (y > window.innerHeight * 0.85 && Math.random() < 0.05) material = 'gold';
             else if (y > window.innerHeight * 0.9 && Math.random() < 0.01) material = 'fluorite';
             else if (y > window.innerHeight / 2 - 32) material = 'grass';
-            blocks.create(x, y, materials[material].image).setScale(2);  // 16x16画像を32x32に拡大
+            blocks.create(x, y, materials[material].image).setScale(2);
             updateInventory(material, 1);
         }
     }
 
-    // 木の生成
     for (let i = 0; i < 5; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = window.innerHeight / 2 - 32;
         generateTree(x, y);
     }
 
-    // 水とマグマの生成
     for (let i = 0; i < 3; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = Phaser.Math.Between(window.innerHeight / 2, window.innerHeight);
-        blocks.create(x, y, materials['water'].image).setScale(2);  // 16x16画像を32x32に拡大
+        blocks.create(x, y, materials['water'].image).setScale(2);
     }
     for (let i = 0; i < 2; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = Phaser.Math.Between(window.innerHeight / 2, window.innerHeight);
-        blocks.create(x, y, materials['lava'].image).setScale(2);  // 16x16画像を32x32に拡大
+        blocks.create(x, y, materials['lava'].image).setScale(2);
     }
 
-    // ちいかわのモモンガのスポーン
     for (let i = 0; i < 3; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = Phaser.Math.Between(0, window.innerHeight / 2);
-        enemies.create(x, y, 'momonga');
+        const momonga = enemies.create(x, y, 'momonga');
+        momonga.setData('hp', 18);
     }
 
     this.input.on('pointerdown', (pointer) => {
         const x = Math.floor(pointer.x / 32) * 32;
         const y = Math.floor(pointer.y / 32) * 32;
         if (placing) {
-            blocks.create(x, y, 'dirt').setScale(2);  // 16x16画像を32x32に拡大
+            blocks.create(x, y, 'dirt').setScale(2);
             updateInventory('dirt', 1);
         } else {
             const block = blocks.getChildren().find(b => b.x === x && b.y === y);
@@ -141,7 +137,6 @@ function create() {
 
     this.input.keyboard.on('keydown-W', () => placing = !placing);
 
-    // モバイル操作のためのUI
     document.getElementById('left').addEventListener('touchstart', () => player.setVelocityX(-200));
     document.getElementById('right').addEventListener('touchstart', () => player.setVelocityX(200));
     document.getElementById('up').addEventListener('touchstart', () => player.setVelocityY(-200));
@@ -151,50 +146,69 @@ function create() {
         const craftedItem = craft();
         if (craftedItem) {
             console.log(`${craftedItem}がクラフトされました！`);
+            if (craftedItem === 'cardboard') updateInventory('cardboard', 1);
+            else if (craftedItem === 'Wiper') {
+                currentWeapon = 'Wiper';
+                weapon.setTexture('Wiper').setVisible(true);
+            } else if (craftedItem.includes('_sword')) {
+                currentWeapon = craftedItem;
+                weapon.setTexture('sword').setVisible(true);
+            }
         } else {
             console.log('材料が足りません。');
         }
     });
+
+    this.input.on('pointerdown', (pointer) => {
+        if (currentWeapon) {
+            const x = Math.floor(pointer.x / 32) * 32;
+            const y = Math.floor(pointer.y / 32) * 32;
+            attack(x, y);
+        }
+    });
+}
+
+function update() {
+    if (cursors.left.isDown) player.setVelocityX(-160);
+    else if (cursors.right.isDown) player.setVelocityX(160);
+    else player.setVelocityX(0);
+
+    if (cursors.up.isDown) player.setVelocityY(-160);
+    else if (cursors.down.isDown) player.setVelocityY(160);
+    else player.setVelocityY(0);
 }
 
 function generateTree(x, y) {
-    for (let i = 0; i < 5; i++) {
-        blocks.create(x, y - i * 32, materials['wood'].image).setScale(2);  // 16x16画像を32x32に拡大
-        updateInventory('wood', 1);
-    }
+    blocks.create(x, y, 'wood').setScale(2);
+    blocks.create(x, y - 32, 'wood').setScale(2);
+    blocks.create(x, y - 64, 'wood').setScale(2);
+    blocks.create(x - 16, y - 32, 'wood').setScale(2);
+    blocks.create(x + 16, y - 32, 'wood').setScale(2);
 }
 
-function updateInventory(item, amount) {
+function updateInventory(item, quantity) {
     if (!inventory[item]) inventory[item] = 0;
-    inventory[item] += amount;
-    if (inventory[item] < 0) inventory[item] = 0;
+    inventory[item] += quantity;
     renderInventory();
 }
 
 function renderInventory() {
-    const inventoryList = document.getElementById('inventory-list');
-    inventoryList.innerHTML = '';
-    for (let item in inventory) {
-        if (inventory[item] > 0) {
-            const listItem = document.createElement('li');
-            listItem.textContent = `${item}: ${inventory[item]}`;
-            inventoryList.appendChild(listItem);
-        }
+    const list = document.getElementById('inventory-list');
+    list.innerHTML = '';
+    for (const item in inventory) {
+        const li = document.createElement('li');
+        li.textContent = `${item}: ${inventory[item]}`;
+        list.appendChild(li);
     }
 }
 
 function craft() {
-    for (let recipe in recipes) {
-        let canCraft = true;
-        for (let material in recipes[recipe]) {
-            if (!inventory[material] || inventory[material] < recipes[recipe][material]) {
-                canCraft = false;
-                break;
-            }
-        }
-        if (canCraft) {
-            for (let material in recipes[recipe]) {
-                updateInventory(material, -recipes[recipe][material]);
+    for (const recipe in recipes) {
+        const needed = recipes[recipe];
+        const hasAllMaterials = Object.entries(needed).every(([material, qty]) => inventory[material] >= qty);
+        if (hasAllMaterials) {
+            for (const [material, qty] of Object.entries(needed)) {
+                updateInventory(material, -qty);
             }
             return recipe;
         }
@@ -202,20 +216,16 @@ function craft() {
     return null;
 }
 
-function update() {
-    if (cursors.left.isDown) {
-        player.setVelocityX(-200);
-    } else if (cursors.right.isDown) {
-        player.setVelocityX(200);
-    } else {
-        player.setVelocityX(0);
-    }
-    if (cursors.up.isDown) {
-        player.setVelocityY(-200);
-    } else if (cursors.down.isDown) {
-        player.setVelocityY(200);
-    } else {
-        player.setVelocityY(0);
+function attack(x, y) {
+    if (currentWeapon) {
+        enemies.getChildren().forEach(momonga => {
+            if (momonga.getBounds().contains(x, y)) {
+                let hp = momonga.getData('hp');
+                hp -= weapon.type === 'sword' ? 10 : 5; // Example damage values
+                momonga.setData('hp', hp);
+                if (hp <= 0) momonga.destroy();
+            }
+        });
     }
 }
 </script>
