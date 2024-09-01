@@ -10,7 +10,8 @@
         button { margin: 5px; padding: 10px; }
         #inventory { position: absolute; bottom: 10px; right: 10px; background: rgba(0, 0, 0, 0.7); color: white; padding: 10px; border-radius: 5px; }
         #inventory ul { list-style-type: none; margin: 0; padding: 0; }
-        #inventory li { margin: 5px 0; }
+        #inventory li { margin: 5px 0; cursor: pointer; }
+        #inventory li.selected { background: rgba(255, 255, 255, 0.3); }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
 </head>
@@ -37,7 +38,7 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
-let player, cursors, blocks, weapon, placing = true, enemies, inventory = {}, currentWeapon = null;
+let player, cursors, blocks, weapon, placing = true, enemies, cooperators, inventory = {};
 const materials = {
     'dirt': { image: 'dirt', strength: 1 },
     'grass': { image: 'grass', strength: 1 },
@@ -48,7 +49,8 @@ const materials = {
     'fluorite': { image: 'fluorite', strength: 6 },
     'water': { image: 'water', strength: 0, liquid: true },
     'lava': { image: 'lava', strength: 0, liquid: true },
-    'cardboard': { image: 'cardboard', strength: 0.5 }
+    'cardboard': { image: 'cardboard', strength: 0.5 },
+    'wipe': { image: 'wipe', strength: 10 } // ワイパー追加
 };
 
 const recipes = {
@@ -56,33 +58,42 @@ const recipes = {
     'stone_sword': { 'stone': 2 },
     'iron_sword': { 'iron': 2 },
     'gold_sword': { 'gold': 2 },
-    'Wiper': { 'iron': 3, 'gold': 1 },
-    'cardboard': { 'wood': 8 }
+    'fluorite_sword': { 'fluorite': 2 },
+    'cardboard': { 'wood': 1, quantity: 8 },
+    'wipe': { 'wood': 2, 'iron': 1 } // ワイパーのレシピ
 };
 
 function preload() {
-    this.load.image('player', 'https://examples.phaser.io/assets/sprites/phaser-dude.png');
+    // 画像の読み込み
+    this.load.image('player', 'https://examples.phaser.io/assets/sprites/phaser-dude.png'); // プレイヤーの仮画像
     this.load.image('dirt', 'image/dirt.png');
     this.load.image('grass', 'image/grass.png');
     this.load.image('wood', 'image/wood.png');
     this.load.image('stone', 'image/stone.png');
     this.load.image('iron', 'image/iron.png');
+    this.load.image('gold', 'image/gold.png');
     this.load.image('fluorite', 'image/fluorite.png');
     this.load.image('water', 'image/water.png');
     this.load.image('lava', 'image/lava.png');
     this.load.image('cardboard', 'image/cardboard.png');
-    this.load.image('momonga', 'image/momonga.png');
-    this.load.image('sword', 'image/sword.png');
-    this.load.image('Wiper', 'image/Wiper.png');
+    this.load.image('wipe', 'image/wiper.png'); // ワイパーの画像追加
+    this.load.image('momonga', 'image/momonga.png'); // ちいかわのモモンガの画像
+    this.load.image('triangle_enemy', 'image/triangle_enemy.png'); // 三角形の敵の画像
 }
 
 function create() {
-    player = this.physics.add.sprite(100, 100, 'player').setCollideWorldBounds(true);
+    // プレイヤーを青い丸に変更
+    player = this.add.circle(100, 100, 16, 0x0000ff).setOrigin(0.5).setDepth(1);
+    this.physics.world.enable(player);
+    player.body.setCollideWorldBounds(true);
+
     blocks = this.physics.add.staticGroup();
     enemies = this.physics.add.group();
-    weapon = this.add.image(0, 0, 'sword').setScale(0.5).setVisible(false);
+    cooperators = this.physics.add.group();
+    weapon = this.add.image(0, 0, 'wipe').setScale(0.5).setVisible(false); // ワイパーを武器として設定
     cursors = this.input.keyboard.createCursorKeys();
 
+    // 土と石の生成
     for (let y = 0; y < window.innerHeight; y += 32) {
         for (let x = 0; x < window.innerWidth; x += 32) {
             let material = 'dirt';
@@ -95,12 +106,14 @@ function create() {
         }
     }
 
+    // 木の生成
     for (let i = 0; i < 5; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = window.innerHeight / 2 - 32;
         generateTree(x, y);
     }
 
+    // 水とマグマの生成
     for (let i = 0; i < 3; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = Phaser.Math.Between(window.innerHeight / 2, window.innerHeight);
@@ -112,11 +125,18 @@ function create() {
         blocks.create(x, y, materials['lava'].image).setScale(2);
     }
 
+    // ちいかわのモモンガのスポーン
     for (let i = 0; i < 3; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = Phaser.Math.Between(0, window.innerHeight / 2);
-        const momonga = enemies.create(x, y, 'momonga');
-        momonga.setData('hp', 18);
+        cooperators.create(x, y, 'momonga').setScale(0.5).setData('hp', 18);
+    }
+
+    // 三角形の敵のスポーン
+    for (let i = 0; i < 3; i++) {
+        const x = Phaser.Math.Between(0, window.innerWidth);
+        const y = Phaser.Math.Between(window.innerHeight / 2, window.innerHeight);
+        enemies.create(x, y, 'triangle_enemy').setScale(0.5).setData('hp', 10);
     }
 
     this.input.on('pointerdown', (pointer) => {
@@ -126,106 +146,110 @@ function create() {
             blocks.create(x, y, 'dirt').setScale(2);
             updateInventory('dirt', 1);
         } else {
-            const block = blocks.getChildren().find(b => b.x === x && b.y === y);
-            if (block) {
-                const material = Object.keys(materials).find(key => materials[key].image === block.texture.key);
-                if (material) updateInventory(material, -1);
-                block.destroy();
-            }
+            destroyBlock(x, y);
         }
     });
 
-    this.input.keyboard.on('keydown-W', () => placing = !placing);
+    // インベントリの表示
+    updateInventoryDisplay();
 
-    document.getElementById('left').addEventListener('touchstart', () => player.setVelocityX(-200));
-    document.getElementById('right').addEventListener('touchstart', () => player.setVelocityX(200));
-    document.getElementById('up').addEventListener('touchstart', () => player.setVelocityY(-200));
-    document.getElementById('down').addEventListener('touchstart', () => player.setVelocityY(200));
-    document.getElementById('toggle').addEventListener('touchstart', () => placing = !placing);
-    document.getElementById('craft').addEventListener('touchstart', () => {
-        const craftedItem = craft();
-        if (craftedItem) {
-            console.log(`${craftedItem}がクラフトされました！`);
-            if (craftedItem === 'cardboard') updateInventory('cardboard', 1);
-            else if (craftedItem === 'Wiper') {
-                currentWeapon = 'Wiper';
-                weapon.setTexture('Wiper').setVisible(true);
-            } else if (craftedItem.includes('_sword')) {
-                currentWeapon = craftedItem;
-                weapon.setTexture('sword').setVisible(true);
-            }
-        } else {
-            console.log('材料が足りません。');
-        }
-    });
+    // ボタンイベントリスナー
+    document.getElementById('left').addEventListener('click', () => movePlayer(-32, 0));
+    document.getElementById('right').addEventListener('click', () => movePlayer(32, 0));
+    document.getElementById('up').addEventListener('click', () => movePlayer(0, -32));
+    document.getElementById('down').addEventListener('click', () => movePlayer(0, 32));
+    document.getElementById('toggle').addEventListener('click', () => placing = !placing);
+    document.getElementById('craft').addEventListener('click', () => showCraftingMenu());
 
-    this.input.on('pointerdown', (pointer) => {
-        if (currentWeapon) {
-            const x = Math.floor(pointer.x / 32) * 32;
-            const y = Math.floor(pointer.y / 32) * 32;
-            attack(x, y);
+    // スプラトゥーン風のワイパー追加
+    this.input.on('pointermove', (pointer) => {
+        if (weapon.visible) {
+            weapon.setPosition(pointer.x, pointer.y);
         }
     });
 }
 
 function update() {
-    if (cursors.left.isDown) player.setVelocityX(-160);
-    else if (cursors.right.isDown) player.setVelocityX(160);
-    else player.setVelocityX(0);
+    if (cursors.left.isDown) {
+        movePlayer(-4, 0);
+    } else if (cursors.right.isDown) {
+        movePlayer(4, 0);
+    }
+    if (cursors.up.isDown) {
+        movePlayer(0, -4);
+    } else if (cursors.down.isDown) {
+        movePlayer(0, 4);
+    }
+}
 
-    if (cursors.up.isDown) player.setVelocityY(-160);
-    else if (cursors.down.isDown) player.setVelocityY(160);
-    else player.setVelocityY(0);
+function movePlayer(dx, dy) {
+    player.x += dx;
+    player.y += dy;
 }
 
 function generateTree(x, y) {
-    blocks.create(x, y, 'wood').setScale(2);
-    blocks.create(x, y - 32, 'wood').setScale(2);
-    blocks.create(x, y - 64, 'wood').setScale(2);
-    blocks.create(x - 16, y - 32, 'wood').setScale(2);
-    blocks.create(x + 16, y - 32, 'wood').setScale(2);
-}
-
-function updateInventory(item, quantity) {
-    if (!inventory[item]) inventory[item] = 0;
-    inventory[item] += quantity;
-    renderInventory();
-}
-
-function renderInventory() {
-    const list = document.getElementById('inventory-list');
-    list.innerHTML = '';
-    for (const item in inventory) {
-        const li = document.createElement('li');
-        li.textContent = `${item}: ${inventory[item]}`;
-        list.appendChild(li);
+    const height = Phaser.Math.Between(3, 5);
+    for (let i = 0; i < height; i++) {
+        blocks.create(x, y - i * 32, 'wood').setScale(2);
+        updateInventory('wood', 1);
     }
 }
 
-function craft() {
-    for (const recipe in recipes) {
-        const needed = recipes[recipe];
-        const hasAllMaterials = Object.entries(needed).every(([material, qty]) => inventory[material] >= qty);
-        if (hasAllMaterials) {
-            for (const [material, qty] of Object.entries(needed)) {
-                updateInventory(material, -qty);
+function destroyBlock(x, y) {
+    const block = blocks.getChildren().find(b => b.x === x && b.y === y);
+    if (block) {
+        const material = Object.keys(materials).find(key => materials[key].image === block.texture.key);
+        if (material) {
+            const dropItem = Phaser.Math.Between(1, 100) <= 30; // 30%の確率でアイテムをドロップ
+            if (dropItem) {
+                updateInventory(material, 1);
             }
-            return recipe;
+            block.destroy();
         }
     }
-    return null;
 }
 
-function attack(x, y) {
-    if (currentWeapon) {
-        enemies.getChildren().forEach(momonga => {
-            if (momonga.getBounds().contains(x, y)) {
-                let hp = momonga.getData('hp');
-                hp -= weapon.type === 'sword' ? 10 : 5; // Example damage values
-                momonga.setData('hp', hp);
-                if (hp <= 0) momonga.destroy();
+function updateInventory(material, quantity) {
+    if (!inventory[material]) {
+        inventory[material] = 0;
+    }
+    inventory[material] += quantity;
+    updateInventoryDisplay();
+}
+
+function updateInventoryDisplay() {
+    const inventoryList = document.getElementById('inventory-list');
+    inventoryList.innerHTML = '';
+    for (const [material, quantity] of Object.entries(inventory)) {
+        const li = document.createElement('li');
+        li.textContent = `${material}: ${quantity}`;
+        inventoryList.appendChild(li);
+    }
+}
+
+function showCraftingMenu() {
+    const recipe = prompt('クラフトするアイテムを入力してください (例: wood_sword):');
+    if (recipes[recipe]) {
+        let canCraft = true;
+        for (const [material, quantity] of Object.entries(recipes[recipe])) {
+            if (material !== 'quantity' && (!inventory[material] || inventory[material] < quantity)) {
+                canCraft = false;
+                break;
             }
-        });
+        }
+        if (canCraft) {
+            for (const [material, quantity] of Object.entries(recipes[recipe])) {
+                if (material !== 'quantity') {
+                    inventory[material] -= quantity;
+                }
+            }
+            updateInventoryDisplay();
+            alert(`クラフト成功！${recipe}を作成しました。`);
+        } else {
+            alert('材料が足りません。');
+        }
+    } else {
+        alert('無効なレシピです。');
     }
 }
 </script>
