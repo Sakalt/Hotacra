@@ -302,6 +302,11 @@ document.getElementById('toggle').addEventListener('click', () => {
     const state = placing ? '配置モード' : '破壊モード';
     alert(`現在は ${state} です`);
 });
+document.getElementById('left').addEventListener('touchstart', () => player.setVelocityX(-200));
+document.getElementById('right').addEventListener('touchstart', () => player.setVelocityX(200));
+document.getElementById('up').addEventListener('touchstart', () => player.setVelocityY(-200));
+document.getElementById('down').addEventListener('touchstart', () => player.setVelocityY(200));
+document.getElementById('toggle').addEventListener('touchstart', () => placing = !placing); 
 </script>
 </body>
 </html>
