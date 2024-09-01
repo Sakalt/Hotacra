@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>2D マイクラ風ゲーム</title>
+    <style>
+        body { margin: 0; }
+        canvas { touch-action: none; }
+        #controls { position: absolute; bottom: 10px; left: 10px; }
+        button { margin: 5px; padding: 10px; }
+        #inventory { position: absolute; bottom: 10px; right: 10px; background: rgba(0, 0, 0, 0.7); color: white; padding: 10px; border-radius: 5px; }
+        #inventory ul { list-style-type: none; margin: 0; padding: 0; }
+        #inventory li { margin: 5px 0; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+</head>
+<body>
+<div id="controls">
+    <button id="left">左</button>
+    <button id="right">右</button>
+    <button id="up">上</button>
+    <button id="down">下</button>
+    <button id="toggle">配置/破壊切替</button>
+    <button id="craft">クラフト</button>
+</div>
+<div id="inventory">
+    <h3>インベントリ</h3>
+    <ul id="inventory-list"></ul>
+</div>
+<script>
+const config = {
+    type: Phaser.AUTO,
+    width: window.innerWidth,
+    height: window.innerHeight,
+    physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
+    scene: { preload, create, update }
+};
+
+const game = new Phaser.Game(config);
+let player, cursors, blocks, weapon, placing = true, enemies, inventory = {};
+const materials = {
+    'dirt': { image: 'dirt', strength: 1 },
+    'grass': { image: 'grass', strength: 1 },
+    'wood': { image: 'wood', strength: 2 },
+    'stone': { image: 'stone', strength: 3 },
+    'iron': { image: 'iron', strength: 4 },
+    'gold': { image: 'gold', strength: 5 },
+    'fluorite': { image: 'fluorite', strength: 6 },
+    'water': { image: 'water', strength: 0, liquid: true },
+    'lava': { image: 'lava', strength: 0, liquid: true },
+    'cardboard': { image: 'cardboard', strength: 0.5 }
+};
+
+const recipes = {
+    'wood_sword': { 'wood': 2 },
+    'stone_sword': { 'stone': 2 },
+    'iron_sword': { 'iron': 2 },
+    'gold_sword': { 'gold': 2 },
+    'fluorite_sword': { 'fluorite': 2 }
+};
+
+function preload() {
+    // 画像の読み込み
+    this.load.image('player', 'https://examples.phaser.io/assets/sprites/phaser-dude.png');
+    this.load.image('dirt', 'imagedirt.png');  // 16x16画像を32x32に拡大
+    this.load.image('grass', 'image/grass.png');  // 16x16画像を32x32に拡大
+    this.load.image('wood', 'image/wood.png');  // 16x16画像を32x32に拡大
+    this.load.image('stone', 'image/stone.png');  // 16x16画像を32x32に拡大
+    this.load.image('iron', 'image/gold.png');  // 16x16画像を32x32に拡大
+    this.load.image('fluorite', 'image/fluorite.png');  // 16x16画像を32x32に拡大
+    this.load.image('water', 'image/water.png');  // 16x16画像を32x32に拡大
+    this.load.image('lava', 'image/lava.png');  // 16x16画像を32x32に拡大
+    this.load.image('cardboard', 'image/cardboard.png');  // 16x16画像を32x32に拡大
+    this.load.image('momonga', 'image/momonga.png');  // ちいかわのモモンガの画像
+    this.load.image('sword', 'image/sword.png');  // 仮の画像
+}
+
+function create() {
+    player = this.physics.add.sprite(100, 100, 'player').setCollideWorldBounds(true);
+    blocks = this.physics.add.staticGroup();
+    enemies = this.physics.add.group();
+    weapon = this.add.image(0, 0, 'sword').setScale(0.5).setVisible(false);
+    cursors = this.input.keyboard.createCursorKeys();
+
+    // 土と石の生成
+    for (let y = 0; y < window.innerHeight; y += 32) {
+        for (let x = 0; x < window.innerWidth; x += 32) {
+            let material = 'dirt';
+            if (y > window.innerHeight * 0.75 && Math.random() < 0.1) material = 'iron';
+            else if (y > window.innerHeight * 0.85 && Math.random() < 0.05) material = 'gold';
+            else if (y > window.innerHeight * 0.9 && Math.random() < 0.01) material = 'fluorite';
+            else if (y > window.innerHeight / 2 - 32) material = 'grass';
+            blocks.create(x, y, materials[material].image).setScale(2);  // 16x16画像を32x32に拡大
+            updateInventory(material, 1);
+        }
+    }
+
+    // 木の生成
+    for (let i = 0; i < 5; i++) {
+        const x = Phaser.Math.Between(0, window.innerWidth);
+        const y = window.innerHeight / 2 - 32;
+        generateTree(x, y);
+    }
+
+    // 水とマグマの生成
+    for (let i = 0; i < 3; i++) {
+        const x = Phaser.Math.Between(0, window.innerWidth);
+        const y = Phaser.Math.Between(window.innerHeight / 2, window.innerHeight);
+        blocks.create(x, y, materials['water'].image).setScale(2);  // 16x16画像を32x32に拡大
+    }
+    for (let i = 0; i < 2; i++) {
+        const x = Phaser.Math.Between(0, window.innerWidth);
+        const y = Phaser.Math.Between(window.innerHeight / 2, window.innerHeight);
+        blocks.create(x, y, materials['lava'].image).setScale(2);  // 16x16画像を32x32に拡大
+    }
+
+    // ちいかわのモモンガのスポーン
+    for (let i = 0; i < 3; i++) {
+        const x = Phaser.Math.Between(0, window.innerWidth);
+        const y = Phaser.Math.Between(0, window.innerHeight / 2);
+        enemies.create(x, y, 'momonga');
+    }
+
+    this.input.on('pointerdown', (pointer) => {
+        const x = Math.floor(pointer.x / 32) * 32;
+        const y = Math.floor(pointer.y / 32) * 32;
+        if (placing) {
+            blocks.create(x, y, 'dirt').setScale(2);  // 16x16画像を32x32に拡大
+            updateInventory('dirt', 1);
+        } else {
+            const block = blocks.getChildren().find(b => b.x === x && b.y === y);
+            if (block) {
+                const material = Object.keys(materials).find(key => materials[key].image === block.texture.key);
+                if (material) updateInventory(material, -1);
+                block.destroy();
+            }
+        }
+    });
+
+    this.input.keyboard.on('keydown-W', () => placing = !placing);
+
+    // モバイル操作のためのUI
+    document.getElementById('left').addEventListener('touchstart', () => player.setVelocityX(-200));
+    document.getElementById('right').addEventListener('touchstart', () => player.setVelocityX(200));
+    document.getElementById('up').addEventListener('touchstart', () => player.setVelocityY(-200));
+    document.getElementById('down').addEventListener('touchstart', () => player.setVelocityY(200));
+    document.getElementById('toggle').addEventListener('touchstart', () => placing = !placing);
+    document.getElementById('craft').addEventListener('touchstart', () => {
+        const craftedItem = craft();
+        if (craftedItem) {
+            console.log(`${craftedItem}がクラフトされました！`);
+        } else {
+            console.log('材料が足りません。');
+        }
+    });
+}
+
+function generateTree(x, y) {
+    for (let i = 0; i < 5; i++) {
+        blocks.create(x, y - i * 32, materials['wood'].image).setScale(2);  // 16x16画像を32x32に拡大
+        updateInventory('wood', 1);
+    }
+}
+
+function updateInventory(item, amount) {
+    if (!inventory[item]) inventory[item] = 0;
+    inventory[item] += amount;
+    if (inventory[item] < 0) inventory[item] = 0;
+    renderInventory();
+}
+
+function renderInventory() {
+    const inventoryList = document.getElementById('inventory-list');
+    inventoryList.innerHTML = '';
+    for (let item in inventory) {
+        if (inventory[item] > 0) {
+            const listItem = document.createElement('li');
+            listItem.textContent = `${item}: ${inventory[item]}`;
+            inventoryList.appendChild(listItem);
+        }
+    }
+}
+
+function craft() {
+    for (let recipe in recipes) {
+        let canCraft = true;
+        for (let material in recipes[recipe]) {
+            if (!inventory[material] || inventory[material] < recipes[recipe][material]) {
+                canCraft = false;
+                break;
+            }
+        }
+        if (canCraft) {
+            for (let material in recipes[recipe]) {
+                updateInventory(material, -recipes[recipe][material]);
+            }
+            return recipe;
+        }
+    }
+    return null;
+}
+
+function update() {
+    if (cursors.left.isDown) {
+        player.setVelocityX(-200);
+    } else if (cursors.right.isDown) {
+        player.setVelocityX(200);
+    } else {
+        player.setVelocityX(0);
+    }
+    if (cursors.up.isDown) {
+        player.setVelocityY(-200);
+    } else if (cursors.down.isDown) {
+        player.setVelocityY(200);
+    } else {
+        player.setVelocityY(0);
+    }
+}
+</script>
+</body>
+</html>
