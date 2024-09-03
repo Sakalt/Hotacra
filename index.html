@@ -40,7 +40,7 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
-let player, cursors, blocks, weapon, placing = true, enemies, cooperators, spawnEggs, inventory = {};
+let player, blocks, weapon, placing = true, enemies, cooperators, spawnEggs, inventory = {};
 const materials = {
     'dirt': { image: 'dirt', strength: 1 },
     'grass': { image: 'grass', strength: 1 },
@@ -52,10 +52,10 @@ const materials = {
     'water': { image: 'water', strength: 0, liquid: true },
     'lava': { image: 'lava', strength: 0, liquid: true },
     'cardboard': { image: 'cardboard', strength: 0.5 },
-    'wipe': { image: 'wipe', strength: 10 }, // ワイパー追加
-    'momonga_ore': { image: 'momonga_ore', strength: 1 }, // モモンガ鉱石追加
-    'triangle_enemy_egg': { image: 'triangle_enemy_egg', strength: 0 }, // 三角形の敵スポーンエッグ追加
-    'octagon_enemy_egg': { image: 'octagon_enemy_egg', strength: 0 } // 八角形の敵スポーンエッグ追加
+    'wipe': { image: 'wipe', strength: 10 },
+    'momonga_ore': { image: 'momonga_ore', strength: 1 },
+    'triangle_enemy_egg': { image: 'triangle_enemy_egg', strength: 0 },
+    'octagon_enemy_egg': { image: 'octagon_enemy_egg', strength: 0 }
 };
 
 const recipes = {
@@ -65,15 +65,14 @@ const recipes = {
     'gold_sword': { 'gold': 2 },
     'fluorite_sword': { 'fluorite': 2 },
     'cardboard': { 'wood': 1, quantity: 8 },
-    'wipe': { 'wood': 2, 'iron': 1 }, // ワイパーのレシピ
-    'momonga_spawn': { 'momonga_ore': 1 }, // モモンガのレシピ
-    'triangle_enemy_egg': { 'stone': 1 }, // 三角形の敵スポーンエッグのレシピ
-    'octagon_enemy_egg': { 'iron': 1 } // 八角形の敵スポーンエッグのレシピ
+    'wipe': { 'wood': 2, 'iron': 1 },
+    'momonga_spawn': { 'momonga_ore': 1 },
+    'triangle_enemy_egg': { 'stone': 1 },
+    'octagon_enemy_egg': { 'iron': 1 }
 };
 
 function preload() {
-    // 画像の読み込み
-    this.load.image('player', 'https://examples.phaser.io/assets/sprites/phaser-dude.png'); // プレイヤーの仮画像
+    this.load.image('player', 'https://examples.phaser.io/assets/sprites/phaser-dude.png');
     this.load.image('dirt', 'image/dirt.png');
     this.load.image('grass', 'image/grass.png');
     this.load.image('wood', 'image/wood.png');
@@ -84,17 +83,16 @@ function preload() {
     this.load.image('water', 'image/water.png');
     this.load.image('lava', 'image/lava.png');
     this.load.image('cardboard', 'image/cardboard.png');
-    this.load.image('wipe', 'image/wipe.png'); // ワイパーの画像追加
-    this.load.image('momonga', 'image/momonga.png'); // ちいかわのモモンガの画像
-    this.load.image('triangle_enemy', 'image/triangle_enemy.png'); // 三角形の敵の画像
-    this.load.image('octagon_enemy', 'image/octagon_enemy.png'); // 八角形の敵の画像
-    this.load.image('momonga_ore', 'image/momonga_ore.png'); // モモンガ鉱石の画像
-    this.load.image('triangle_enemy_egg', 'image/triangle_enemy_egg.png'); // 三角形の敵スポーンエッグの画像
-    this.load.image('octagon_enemy_egg', 'image/octagon_enemy_egg.png'); // 八角形の敵スポーンエッグの画像
+    this.load.image('wipe', 'image/wipe.png');
+    this.load.image('momonga', 'image/momonga.png');
+    this.load.image('triangle_enemy', 'image/triangle_enemy.png');
+    this.load.image('octagon_enemy', 'image/octagon_enemy.png');
+    this.load.image('momonga_ore', 'image/momonga_ore.png');
+    this.load.image('triangle_enemy_egg', 'image/triangle_enemy_egg.png');
+    this.load.image('octagon_enemy_egg', 'image/octagon_enemy_egg.png');
 }
 
 function create() {
-    // プレイヤーを青い丸に変更
     player = this.add.circle(100, 100, 16, 0x0000ff).setOrigin(0.5).setDepth(1);
     this.physics.world.enable(player);
     player.body.setCollideWorldBounds(true);
@@ -102,11 +100,9 @@ function create() {
     blocks = this.physics.add.staticGroup();
     enemies = this.physics.add.group();
     cooperators = this.physics.add.group();
-    spawnEggs = this.physics.add.group(); // スポーンエッグのグループ
-    weapon = this.add.image(0, 0, 'wipe').setScale(0.5).setVisible(false); // ワイパーを武器として設定
-    cursors = this.input.keyboard.createCursorKeys();
+    spawnEggs = this.physics.add.group();
+    weapon = this.add.image(0, 0, 'wipe').setScale(0.5).setVisible(false);
 
-    // 土と石の生成
     for (let y = 100; y < window.innerHeight; y += 32) {
         for (let x = 0; x < window.innerWidth; x += 32) {
             let material = 'dirt';
@@ -119,14 +115,12 @@ function create() {
         }
     }
 
-    // 木の生成
     for (let i = 0; i < 5; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = window.innerHeight / 2 - 32;
         generateTree(x, y);
     }
 
-    // 水とマグマの生成
     for (let i = 0; i < 3; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = Phaser.Math.Between(window.innerHeight / 2, window.innerHeight);
@@ -138,7 +132,6 @@ function create() {
         blocks.create(x, y, materials['lava'].image).setScale(2);
     }
 
-    // 敵スポーンエッグの配置
     for (let i = 0; i < 3; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = Phaser.Math.Between(0, window.innerHeight / 2);
@@ -150,163 +143,139 @@ function create() {
         spawnEggs.create(x, y, 'octagon_enemy_egg').setScale(0.5);
     }
 
-    // モモンガの配置
     for (let i = 0; i < 1; i++) {
         const x = Phaser.Math.Between(0, window.innerWidth);
         const y = Phaser.Math.Between(0, window.innerHeight / 2);
-        cooperators.create(x, y, 'momonga').setScale(0.5).setData('hp', 10);
+        cooperators.create(x, y, 'momonga').setScale(0.5);
     }
 
-    // クラフトメニューの表示
-    displayCraftMenu();
-    updateInventoryList();
+    this.input.on('pointerdown', function (pointer) {
+        const x = pointer.x;
+        const y = pointer.y;
 
-    // 敵の動きの設定
-    this.physics.add.collider(player, enemies, (player, enemy) => {
-        player.setTint(0xff0000);
-        player.body.setVelocity(0);
+        if (placing) {
+            blocks.create(x, y, materials['wood'].image).setScale(2);
+            updateInventory('wood', -1);
+        } else {
+            let block = blocks.getChildren().find(b => b.x === x && b.y === y);
+            if (block) {
+                blocks.remove(block, true);
+                updateInventory(block.texture.key, 1);
+            }
+        }
+        updateInventoryList();
+    });
+
+    document.getElementById('left').addEventListener('touchstart', () => {
+        player.body.setVelocityX(-200);
+    });
+    document.getElementById('left').addEventListener('touchend', () => {
+        if (!document.getElementById('right').classList.contains('touched')) {
+            player.body.setVelocityX(0);
+        }
+    });
+
+    document.getElementById('right').addEventListener('touchstart', () => {
+        player.body.setVelocityX(200);
+    });
+    document.getElementById('right').addEventListener('touchend', () => {
+        if (!document.getElementById('left').classList.contains('touched')) {
+            player.body.setVelocityX(0);
+        }
+    });
+
+    document.getElementById('up').addEventListener('touchstart', () => {
+        player.body.setVelocityY(-200);
+    });
+    document.getElementById('up').addEventListener('touchend', () => {
+        if (!document.getElementById('down').classList.contains('touched')) {
+            player.body.setVelocityY(0);
+        }
+    });
+
+    document.getElementById('down').addEventListener('touchstart', () => {
+        player.body.setVelocityY(200);
+    });
+    document.getElementById('down').addEventListener('touchend', () => {
+        if (!document.getElementById('up').classList.contains('touched')) {
+            player.body.setVelocityY(0);
+        }
+    });
+
+    document.getElementById('toggle').addEventListener('click', () => {
+        placing = !placing;
+    });
+
+    document.getElementById('craft').addEventListener('click', () => {
+        if (Object.keys(inventory).length > 0) {
+            const recipe = prompt('クラフトレシピを入力してください (例: wood_sword):');
+            if (recipes[recipe]) {
+                let canCraft = true;
+                for (const [material, quantity] of Object.entries(recipes[recipe])) {
+                    if ((inventory[material] || 0) < quantity) {
+                        canCraft = false;
+                        break;
+                    }
+                }
+                if (canCraft) {
+                    for (const [material, quantity] of Object.entries(recipes[recipe])) {
+                        inventory[material] -= quantity;
+                    }
+                    updateInventory(recipe, 1);
+                    alert('クラフト成功!');
+                } else {
+                    alert('必要な材料が足りません。');
+                }
+            } else {
+                alert('無効なレシピです。');
+            }
+            updateInventoryList();
+        } else {
+            alert('インベントリが空です。');
+        }
     });
 }
 
 function update() {
-    // プレイヤーの移動
-    if (cursors.left.isDown) player.x -= 5;
-    if (cursors.right.isDown) player.x += 5;
-    if (cursors.up.isDown) player.y -= 5;
-    if (cursors.down.isDown) player.y += 5;
-
-    // 武器の位置をプレイヤーに合わせる
-    weapon.setPosition(player.x, player.y);
-
-    if (cursors.space.isDown) {
-        if (placing) {
-            placeBlock();
-        } else {
-            destroyBlock();
-        }
-    }
-
-    // モモンガの攻撃処理
-    cooperators.getChildren().forEach(momonga => {
-        const enemiesInRange = enemies.getChildren().filter(enemy => Phaser.Math.Distance.Between(momonga.x, momonga.y, enemy.x, enemy.y) < 100);
-        if (enemiesInRange.length > 0) {
-            enemiesInRange.forEach(enemy => {
-                if (momonga.getData('hp') > 0) {
-                    // モモンガが敵に攻撃する処理
-                    momonga.setTint(0xff0000); // 攻撃状態を示す
-                    enemy.setData('hp', enemy.getData('hp') - 5); // 攻撃力は5とする
-                    if (enemy.getData('hp') <= 0) {
-                        enemy.destroy();
-                        updateInventory('triangle_enemy_egg', 1); // 三角形の敵が消えたときスポーンエッグを追加
-                    }
-                }
-            });
-        }
-    });
-
-    // 敵の行動
-    enemies.getChildren().forEach(enemy => {
-        enemy.setVelocityY(Phaser.Math.Between(-50, 50));
-        enemy.setVelocityX(Phaser.Math.Between(-50, 50));
-    });
+    // Update code for player movement if needed
 }
 
-// ブロックを設置
-function placeBlock() {
-    if (currentMaterial) {
-        const x = Math.floor(player.x / 32) * 32;
-        const y = Math.floor(player.y / 32) * 32;
-        if (!blocks.getChildren().find(b => b.x === x && b.y === y)) {
-            blocks.create(x, y, materials[currentMaterial].image).setScale(2);
-            updateInventory(currentMaterial, -1);
-        }
+function updateInventory(material, quantity) {
+    if (!inventory[material]) {
+        inventory[material] = 0;
     }
+    inventory[material] += quantity;
+    if (inventory[material] < 0) inventory[material] = 0;
 }
 
-// ブロックを破壊
-function destroyBlock() {
-    const x = Math.floor(player.x / 32) * 32;
-    const y = Math.floor(player.y / 32) * 32;
-    const block = blocks.getChildren().find(b => b.x === x && b.y === y);
-    if (block) {
-        updateInventory(materials[block.texture.key].image, 1);
-        block.destroy();
-    }
-}
-
-// プレイヤーの周りのブロックを配置
-function generateTree(x, y) {
-    blocks.create(x, y, 'wood').setScale(2);
-    for (let i = 1; i <= 3; i++) {
-        blocks.create(x, y - (i * 32), 'wood').setScale(2);
-    }
-}
-
-// インベントリを更新
-function updateInventory(item, quantity) {
-    if (!inventory[item]) {
-        inventory[item] = 0;
-    }
-    inventory[item] += quantity;
-    if (inventory[item] <= 0) {
-        delete inventory[item];
-    }
-    updateInventoryList();
-}
-
-// インベントリリストの更新
-function updateInventoryList() {
+function displayCraftMenu() {
     const inventoryList = document.getElementById('inventory-list');
     inventoryList.innerHTML = '';
-    for (const [item, quantity] of Object.entries(inventory)) {
+    for (const [material, quantity] of Object.entries(inventory)) {
         const li = document.createElement('li');
-        li.textContent = `${item}: ${quantity}`;
-        li.dataset.item = item;
+        li.textContent = `${material}: ${quantity}`;
         inventoryList.appendChild(li);
     }
 }
 
-// クラフトメニューの表示
-function displayCraftMenu() {
-    const craftButton = document.getElementById('craft');
-    craftButton.addEventListener('click', () => {
-        const item = prompt('クラフトしたいアイテムを入力してください (例: wood_sword)');
-        if (recipes[item]) {
-            let canCraft = true;
-            for (const [material, qty] of Object.entries(recipes[item])) {
-                if ((material === 'quantity' && qty > 0) || (inventory[material] || 0) < qty) {
-                    canCraft = false;
-                    break;
-                }
-            }
-            if (canCraft) {
-                for (const [material, qty] of Object.entries(recipes[item])) {
-                    if (material !== 'quantity') {
-                        updateInventory(material, -qty);
-                    }
-                }
-                updateInventory(item, 1);
-                alert(`${item} を作成しました`);
-            } else {
-                alert('素材が不足しています');
-            }
-        } else {
-            alert('不正なアイテムです');
-        }
-    });
+function generateTree(x, y) {
+    blocks.create(x, y, 'wood').setScale(2);
+    blocks.create(x, y - 32, 'wood').setScale(2);
+    blocks.create(x, y - 64, 'wood').setScale(2);
+    blocks.create(x, y - 96, 'wood').setScale(2);
+    blocks.create(x - 32, y - 96, 'wood').setScale(2);
+    blocks.create(x + 32, y - 96, 'wood').setScale(2);
 }
 
-// 配置/破壊切替ボタンの処理
-document.getElementById('toggle').addEventListener('click', () => {
-    placing = !placing;
-    const state = placing ? '配置モード' : '破壊モード';
-    alert(`現在は ${state} です`);
-});
-document.getElementById('left').addEventListener('touchstart', () => player.setVelocityX(-200));
-document.getElementById('right').addEventListener('touchstart', () => player.setVelocityX(200));
-document.getElementById('up').addEventListener('touchstart', () => player.setVelocityY(-200));
-document.getElementById('down').addEventListener('touchstart', () => player.setVelocityY(200));
-document.getElementById('toggle').addEventListener('touchstart', () => placing = !placing); 
+function updateInventoryList() {
+    const inventoryList = document.getElementById('inventory-list');
+    inventoryList.innerHTML = '';
+    for (const [material, quantity] of Object.entries(inventory)) {
+        const li = document.createElement('li');
+        li.textContent = `${material}: ${quantity}`;
+        inventoryList.appendChild(li);
+    }
+}
 </script>
 </body>
 </html>
