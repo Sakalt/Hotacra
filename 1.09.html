@@ -14,14 +14,18 @@
         .button.jump { left: calc(50% - 40px); }
         .button.attack { top: 20px; left: calc(50% - 40px); }
         .button.craft { top: 100px; left: calc(50% - 40px); background: #ffa; }
+        .button.toggle-mode { top: 200px; left: calc(50% - 40px); background: #f55; }
+        #inventory { position: fixed; top: 20px; left: 20px; background: rgba(255, 255, 255, 0.8); padding: 10px; border: 1px solid #000; }
     </style>
 </head>
 <body>
+    <div id="inventory"></div>
     <div class="button move-left">←</div>
     <div class="button move-right">→</div>
     <div class="button jump">↑</div>
     <div class="button attack">⚔</div>
     <div class="button craft">クラフト</div>
+    <div class="button toggle-mode">モード切替</div>
 
     <script>
         // Crafty.jsの初期化
@@ -30,10 +34,11 @@
         // 背景
         Crafty.background('skyblue');
 
-        // タイルマップの設定
+        // タイルサイズ
         const tileSize = 40;
         const mapWidth = 20;
         const mapHeight = 15;
+        let isPlacing = true; // 破壊モードと設置モードのトグル
 
         // プレイヤーのインベントリ
         const inventory = {
@@ -95,6 +100,22 @@
             }
         });
 
+        // 破壊モードと設置モードのトグル
+        document.querySelector('.toggle-mode').addEventListener('click', () => {
+            isPlacing = !isPlacing;
+            console.log(isPlacing ? '設置モード' : '破壊モード');
+        });
+
+        // インベントリの表示更新
+        function updateInventoryDisplay() {
+            const inventoryDiv = document.getElementById('inventory');
+            inventoryDiv.innerHTML = '<h2>インベントリ</h2>';
+            for (let item in inventory) {
+                inventoryDiv.innerHTML += `<p>${item}: ${inventory[item]}</p>`;
+            }
+        }
+        updateInventoryDisplay(); // 初期表示
+
         // ブロックの生成関数
         function createBlock(type, x, y) {
             let color;
@@ -119,6 +140,13 @@
             const block = Crafty.e(`Block, ${type}, 2D, Canvas, Color, Solid, Collision`)
                 .attr({ x: x, y: y, w: tileSize, h: tileSize })
                 .color(color)
+                .bind('MouseDown', function (e) {
+                    if (isPlacing) {
+                        placeBlock(player, type);
+                    } else {
+                        this.isBeingDestroyed = true; // 破壊に時間がかかるようにするフラグ
+                    }
+                })
                 .bind('EnterFrame', function () {
                     if (this.isBeingDestroyed) {
                         this.destroy();
@@ -139,6 +167,7 @@
                     inventory[type] += 1;
                     this.destroy();
                     console.log(`${type}が追加されました。現在のインベントリ:`, inventory);
+                    updateInventoryDisplay();
                 });
         }
 
@@ -163,58 +192,39 @@
                         inventory.sword = (inventory.sword || 0) + 1;
                     }
                     console.log(`${itemName}をクラフトしました。現在のインベントリ:`, inventory);
+                    updateInventoryDisplay();
                 } else {
                     console.log('クラフトに必要な素材が不足しています。');
                 }
             } else {
-                console.log('指定されたレシピが見つかりません。');
+                console.log('無効なアイテム名です。');
             }
         }
 
-        // プレイヤーの攻撃
-        function attack(player) {
-            const weapon = inventory.wipe;
-            if (weapon > 0) {
-                Crafty.e('Attack, 2D, Canvas, Color, Collision')
-                    .attr({ x: player.x + player.w / 2, y: player.y - 10, w: 20, h: 10 })
-                    .color('red')
-                    .bind('EnterFrame', function () {
-                        this.y -= 5;
-                    })
-                    .onHit('Enemy', function () {
-                        this.destroy();
-                        console.log('敵にダメージを与えました！');
-                    });
-                setTimeout(() => {
-                    console.log('ワイパーの攻撃が再度可能です。');
-                }, 1600); // 攻撃間隔1.6秒
-            }
+        // モモンガのスポーン
+        function spawnMomonga() {
+            Crafty.e('Momonga, 2D, Canvas, Color, Collision')
+                .attr({ x: Math.random() * Crafty.viewport.width, y: Math.random() * Crafty.viewport.height, w: 30, h: 30 })
+                .color('pink')
+                .bind('EnterFrame', function () {
+                    if (Math.random() < 0.01) { // 1%の確率でスポーン
+                        spawnMomonga();
+                    }
+                });
         }
+        setInterval(spawnMomonga, 10000); // 10秒ごとにモモンガをスポーン
 
-        // モモンガの追加
-        Crafty.sprite(40, 'image/momonga.png', {
-            momonga: [0, 0]
-        });
-
-        const momonga = Crafty.e('2D, Canvas, momonga, Collision')
-            .attr({ x: 400, y: 500, w: 40, h: 40 })
-            .bind('EnterFrame', function () {
-                // モモンガの簡単なAI（プレイヤーに向かって移動）
-                if (this.x < player.x) {
-                    this.x += 1;
-                } else {
-                    this.x -= 1;
-                }
-                if (this.y < player.y) {
-                    this.y += 1;
-                } else {
-                    this.y -= 1;
-                }
-            })
-            .onHit('Player', function () {
-                inventory.health -= 10;
-                console.log(`プレイヤーの健康が${inventory.health}になりました。`);
-            });
+        // 三角敵の追加
+        function spawnTriangleEnemy() {
+            Crafty.e('Enemy, 2D, Canvas, Color, Collision')
+                .attr({ x: Math.random() * Crafty.viewport.width, y: Math.random() * Crafty.viewport.height, w: 30, h: 30 })
+                .color('red')
+                .bind('EnterFrame', function () {
+                    this.x += (player.x - this.x) * 0.01; // プレイヤーに向かって移動
+                    this.y += (player.y - this.y) * 0.01;
+                });
+        }
+        setInterval(spawnTriangleEnemy, 15000); // 15秒ごとに三角敵をスポーン
 
         // モバイル対応のボタンイベント
         document.querySelector('.move-left').addEventListener('touchstart', () => player.x -= 10);
