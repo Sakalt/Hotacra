@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terraria x Splatoon Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/craftyjs@0.9.0/dist/crafty-min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        .button { position: fixed; bottom: 20px; width: 80px; height: 80px; background: #ccc; border-radius: 50%; text-align: center; line-height: 80px; font-size: 20px; cursor: pointer; }
+        .button.move-left { left: 20px; }
+        .button.move-right { right: 20px; }
+        .button.jump { left: calc(50% - 40px); }
+        .button.attack { top: 20px; left: calc(50% - 40px); }
+        .button.craft { top: 100px; left: calc(50% - 40px); background: #ffa; }
+    </style>
+</head>
+<body>
+    <div class="button move-left">←</div>
+    <div class="button move-right">→</div>
+    <div class="button jump">↑</div>
+    <div class="button attack">⚔</div>
+    <div class="button craft">クラフト</div>
+
+    <script>
+        // Crafty.jsの初期化
+        Crafty.init(800, 600, document.body);
+
+        // 背景
+        Crafty.background('skyblue');
+
+        // タイルマップの設定
+        const tileSize = 40;
+        const mapWidth = 20;
+        const mapHeight = 15;
+
+        // プレイヤーのインベントリ
+        const inventory = {
+            dirt: 0,
+            stone: 0,
+            wood: 0,
+            cardboard: 0,
+            stick: 0,
+            sword: 0,
+            gold: 0,
+            wipe: 0,
+            health: 100
+        };
+
+        // クラフトレシピの読み込み
+        let recipes = {};
+
+        fetch('recipes.json')
+            .then(response => response.json())
+            .then(data => recipes = data);
+
+        // タイルの生成（テラリア風の複数のブロック配置）
+        for (let i = 0; i < mapWidth; i++) {
+            for (let j = 0; j < mapHeight; j++) {
+                if (j === 12) {
+                    createBlock('stone', i * tileSize, j * tileSize);
+                } else if (j === 13) {
+                    createBlock('cardboard', i * tileSize, j * tileSize);
+                } else if (j > 13) {
+                    createBlock('dirt', i * tileSize, j * tileSize);
+                }
+            }
+        }
+
+        // プレイヤーキャラクターの設定
+        const player = Crafty.e('Player, 2D, Canvas, Color, Fourway, Gravity, Collision')
+            .attr({ x: 100, y: 500, w: 30, h: 40 })
+            .color('green')
+            .fourway(200)
+            .gravity('Block')
+            .gravityConst(400)
+            .bind('KeyDown', function(e) {
+                if (e.key === Crafty.keys.SPACE) {
+                    shootInk(this); // インクを発射
+                }
+                if (e.key === Crafty.keys.E) {
+                    placeBlock(this, 'dirt'); // 土のブロックを設置
+                }
+                if (e.key === Crafty.keys.A) {
+                    attack(this); // 攻撃
+                }
+            });
+
+        // クラフトボタンの設定
+        document.querySelector('.craft').addEventListener('click', () => {
+            const itemToCraft = prompt('クラフトするアイテムを入力してください (例: wood_sword, wipe)');
+            if (itemToCraft) {
+                craftItem(itemToCraft);
+            }
+        });
+
+        // ブロックの生成関数
+        function createBlock(type, x, y) {
+            let color;
+            switch (type) {
+                case 'dirt':
+                    color = 'brown';
+                    break;
+                case 'stone':
+                    color = 'gray';
+                    break;
+                case 'wood':
+                    color = 'saddlebrown';
+                    break;
+                case 'cardboard':
+                    color = 'lightyellow';
+                    break;
+                case 'gold':
+                    color = 'gold';
+                    break;
+            }
+
+            const block = Crafty.e(`Block, ${type}, 2D, Canvas, Color, Solid, Collision`)
+                .attr({ x: x, y: y, w: tileSize, h: tileSize })
+                .color(color)
+                .bind('EnterFrame', function () {
+                    if (this.isBeingDestroyed) {
+                        this.destroy();
+                        dropItem(type, x, y);
+                    }
+                })
+                .onHit('Ink', function () {
+                    this.isBeingDestroyed = true; // 破壊に時間がかかるようにするフラグ
+                });
+        }
+
+        // アイテムのドロップ
+        function dropItem(type, x, y) {
+            const item = Crafty.e('Item, 2D, Canvas, Color, Collision')
+                .attr({ x: x, y: y, w: 20, h: 20 })
+                .color(type === 'dirt' ? 'brown' : type === 'stone' ? 'gray' : type === 'wood' ? 'saddlebrown' : type === 'gold' ? 'gold' : 'lightyellow')
+                .onHit('Player', function () {
+                    inventory[type] += 1;
+                    this.destroy();
+                    console.log(`${type}が追加されました。現在のインベントリ:`, inventory);
+                });
+        }
+
+        // アイテムのクラフト
+        function craftItem(itemName) {
+            const recipe = recipes[itemName];
+            if (recipe) {
+                let canCraft = true;
+                for (let ingredient in recipe.ingredients) {
+                    if (inventory[ingredient] < recipe.ingredients[ingredient]) {
+                        canCraft = false;
+                        break;
+                    }
+                }
+                if (canCraft) {
+                    for (let ingredient in recipe.ingredients) {
+                        inventory[ingredient] -= recipe.ingredients[ingredient];
+                    }
+                    if (itemName === 'wipe') {
+                        inventory.wipe = (inventory.wipe || 0) + 1;
+                    } else if (itemName === 'wood_sword') {
+                        inventory.sword = (inventory.sword || 0) + 1;
+                    }
+                    console.log(`${itemName}をクラフトしました。現在のインベントリ:`, inventory);
+                } else {
+                    console.log('クラフトに必要な素材が不足しています。');
+                }
+            } else {
+                console.log('指定されたレシピが見つかりません。');
+            }
+        }
+
+        // プレイヤーの攻撃
+        function attack(player) {
+            const weapon = inventory.wipe;
+            if (weapon > 0) {
+                Crafty.e('Attack, 2D, Canvas, Color, Collision')
+                    .attr({ x: player.x + player.w / 2, y: player.y - 10, w: 20, h: 10 })
+                    .color('red')
+                    .bind('EnterFrame', function () {
+                        this.y -= 5;
+                    })
+                    .onHit('Enemy', function () {
+                        this.destroy();
+                        console.log('敵にダメージを与えました！');
+                    });
+                setTimeout(() => {
+                    console.log('ワイパーの攻撃が再度可能です。');
+                }, 1600); // 攻撃間隔1.6秒
+            }
+        }
+
+        // モモンガの追加
+        Crafty.sprite(40, 'image/momonga.png', {
+            momonga: [0, 0]
+        });
+
+        const momonga = Crafty.e('2D, Canvas, momonga, Collision')
+            .attr({ x: 400, y: 500, w: 40, h: 40 })
+            .bind('EnterFrame', function () {
+                // モモンガの簡単なAI（プレイヤーに向かって移動）
+                if (this.x < player.x) {
+                    this.x += 1;
+                } else {
+                    this.x -= 1;
+                }
+                if (this.y < player.y) {
+                    this.y += 1;
+                } else {
+                    this.y -= 1;
+                }
+            })
+            .onHit('Player', function () {
+                inventory.health -= 10;
+                console.log(`プレイヤーの健康が${inventory.health}になりました。`);
+            });
+
+        // モバイル対応のボタンイベント
+        document.querySelector('.move-left').addEventListener('touchstart', () => player.x -= 10);
+        document.querySelector('.move-right').addEventListener('touchstart', () => player.x += 10);
+        document.querySelector('.jump').addEventListener('touchstart', () => player.y -= 10);
+        document.querySelector('.attack').addEventListener('touchstart', () => attack(player));
+        document.querySelector('.craft').addEventListener('touchstart', () => {
+            const itemToCraft = prompt('クラフトするアイテムを入力してください (例: wood_sword, wipe)');
+            if (itemToCraft) {
+                craftItem(itemToCraft);
+            }
+        });
+
+    </script>
+</body>
+</html>
