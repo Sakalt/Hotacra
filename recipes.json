@@ -1,0 +1,14 @@
+{
+    "wood_sword": {
+        "ingredients": {
+            "stick": 1,
+            "wood": 2
+        }
+    },
+    "wipe": {
+        "ingredients": {
+            "stick": 1,
+            "gold": 2
+        }
+    }
+}
