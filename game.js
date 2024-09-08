@@ -1,3 +1,4 @@
+// Phaser ゲームの設定
 const config = {
     type: Phaser.AUTO,
     width: 800,
@@ -43,14 +44,16 @@ let blockTypes = [
 ];
 
 const items = ['ツルハシ', 'シャベル', '斧'];  // アイテムの例
+let placingBlock = false;
+let destroyingBlock = false;
 
 function preload() {
-    this.load.image('player', 'assets/player.png');  // プレイヤー画像
-    this.load.image('mob_hachiwari', 'assets/mob_hachiwari.png');  // はちわれモブ画像
-    this.load.image('mob_momonga', 'assets/mob_momonga.png');      // モモンガモブ画像
-    this.load.image('mob_chiikawa', 'assets/mob_chiikawa.png');    // ちいかわモブ画像
-    this.load.image('enemy_triangle', 'assets/enemy_triangle.png');  // 敵三角
-    this.load.image('enemy_octagon', 'assets/enemy_octagon.png');    // 敵八角
+    this.load.image('player', 'image/player.png');  // プレイヤー画像
+    this.load.image('mob_hachiwari', 'image/mob_hachiwari.png');  // はちわれモブ画像
+    this.load.image('mob_momonga', 'image/mob_momonga.png');      // モモンガモブ画像
+    this.load.image('mob_chiikawa', 'image/mob_chiikawa.png');    // ちいかわモブ画像
+    this.load.image('enemy_triangle', 'image/enemy_triangle.png');  // 敵三角
+    this.load.image('enemy_octagon', 'image/enemy_octagon.png');    // 敵八角
 }
 
 function create() {
@@ -75,6 +78,30 @@ function create() {
 
     this.input.on('pointerdown', (pointer) => {
         handleClick(this, pointer);
+        placingBlock = true; // クリックでブロックを配置
+    });
+
+    this.input.on('pointerup', () => {
+        placingBlock = false;
+        destroyingBlock = false;
+    });
+
+    this.input.on('pointerdown', (pointer) => {
+        if (pointer.rightButtonDown()) { // 右クリックでブロック破壊
+            destroyingBlock = true;
+        } else {
+            placingBlock = true;
+        }
+    });
+
+    this.input.on('pointerup', () => {
+        destroyingBlock = false;
+        placingBlock = false;
+    });
+
+    this.input.keyboard.on('keydown_ENTER', () => {
+        const command = prompt("コマンドを入力してください:");
+        handleCommand(command);
     });
 
     // ブロック選択バーの描画
@@ -99,6 +126,10 @@ function update() {
     } else {
         player.setVelocityY(0);
     }
+
+    mobs.forEach(mob => {
+        mobAI(mob);  // モブのAI
+    });
 }
 
 function movePlayer(direction) {
@@ -169,60 +200,79 @@ function applyItemEffect(index) {
     switch (items[index]) {
         case 'ツルハシ':
             console.log('ツルハシが選択されました！');
-            // ツルハシの効果：硬いブロックを破壊しやすくする
             blockTypes.forEach(block => block.hardness = block.hardness * 0.5);
             break;
         case 'シャベル':
             console.log('シャベルが選択されました！');
-            // シャベルの効果：土系ブロックを破壊しやすくする
             blockTypes.filter(block => block.name.includes('土')).forEach(block => block.hardness = block.hardness * 0.3);
             break;
         case '斧':
             console.log('斧が選択されました！');
-            // 斧の効果：木系ブロックを破壊しやすくする
             blockTypes.filter(block => block.name.includes('木')).forEach(block => block.hardness = block.hardness * 0.2);
             break;
+        default:
+            break;
+    }
+}
+
+function createMob(scene, x, y, texture, speed) {
+    const mob = scene.physics.add.sprite(x, y, texture);
+    mob.speed = speed;
+    return mob;
+}
+
+function createEnemy(scene, x, y, texture, speed) {
+    const enemy = scene.physics.add.sprite(x, y, texture);
+    enemy.speed = speed;
+    return enemy;
+}
+
+function mobAI(mob) {
+    // シンプルなランダム移動
+    const randomDirection = Phaser.Math.Between(0, 3);
+    switch (randomDirection) {
+        case 0: mob.setVelocityX(mob.speed); break;
+        case 1: mob.setVelocityX(-mob.speed); break;
+        case 2: mob.setVelocityY(mob.speed); break;
+        case 3: mob.setVelocityY(-mob.speed); break;
     }
 }
 
 function handleClick(scene, pointer) {
     const worldPoint = pointer.positionToCamera(scene.cameras.main);
-
-    // モブがクリックされたか確認
-    mobs.forEach(mob => {
-        if (Phaser.Geom.Intersects.RectangleToRectangle(mob.getBounds(), new Phaser.Geom.Rectangle(worldPoint.x, worldPoint.y, 1, 1))) {
-            mob.hp -= 1;  // ダメージを与える
-            if (mob.hp <= 0) {
-                mob.destroy();
-            }
-        }
-    });
-}
-
-function createMob(scene, x, y, texture, hp) {
-    const mob = scene.physics.add.sprite(x, y, texture).setCollideWorldBounds(true);
-    mob.hp = hp;
-    mob.on('destroy', () => {
-        if (mob.hpText) mob.hpText.destroy();
-    });
-    return mob;
-}
-
-function createEnemy(scene, x, y, texture, hp) {
-    const enemy = scene.physics.add.sprite(x, y, texture).setCollideWorldBounds(true);
-    enemy.hp = hp;
-    enemy.on('destroy', () => {
-        if (enemy.hpText) enemy.hpText.destroy();
-    });
-    return enemy;
+    const gridX = Math.floor(worldPoint.x / 32);
+    const gridY = Math.floor(worldPoint.y / 32);
+    if (placingBlock) {
+        const block = blockTypes[selectedBlockIndex];
+        scene.add.rectangle(gridX * 32, gridY * 32, 32, 32, Phaser.Display.Color.HexStringToColor(block.color).color);
+    } else if (destroyingBlock) {
+        console.log('破壊するブロックをクリックしました。');
+    }
 }
 
 function createMobHP(scene) {
     mobs.forEach(mob => {
-        mob.hpText = scene.add.text(mob.x, mob.y - 30, `HP: ${mob.hp}`, { fontSize: '12px', fill: '#fff' });
+        const hpText = scene.add.text(mob.x, mob.y - 20, `HP: ${Phaser.Math.Between(20, 100)}`, { fontSize: '12px', color: '#fff' });
+        mob.hpText = hpText;
     });
+}
 
-    enemies.forEach(enemy => {
-        enemy.hpText = scene.add.text(enemy.x, enemy.y - 30, `HP: ${enemy.hp}`, { fontSize: '12px', fill: '#fff' });
-    });
+function handleCommand(command) {
+    const parts = command.split(" ");
+    switch (parts[0]) {
+        case "/spawn":
+            const entityType = parts[1];
+            const x = parseInt(parts[2], 10);
+            const y = parseInt(parts[3], 10);
+            if (entityType === "mob") {
+                const mobType = parts[4];
+                createMob(this.scene, x, y, mobType, 10);
+            } else if (entityType === "enemy") {
+                const enemyType = parts[4];
+                createEnemy(this.scene, x, y, enemyType, 10);
+            }
+            break;
+        default:
+            console.log("不明なコマンドです。");
+    }
 }
