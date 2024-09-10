@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ちいかわ + ポーランドボール + テラリア風ゲーム</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #game { width: 100vw; height: 80vh; }
+        #controls { width: 100vw; height: 20vh; text-align: center; }
+        button { margin: 5px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <div id="game"></div>
+    <div id="controls">
+        <button id="leftButton">左へ</button>
+        <button id="rightButton">右へ</button>
+        <button id="jumpButton">ジャンプ</button>
+    </div>
+    <script src="https://cdn.jsdelivr.net/gh/craftyjs/Crafty/dist/crafty-min.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
